@@ -1,28 +1,33 @@
 from flask import Flask, render_template, request, jsonify
 import vertexai
 from vertexai.language_models import ChatModel
-import os
 
 app = Flask(__name__)
-PROJECT_ID = "tt-dev-001"  
-LOCATION = "us-central1"  
 
+PROJECT_ID = "smart-impact-430905-t2"
+LOCATION = "us-central1"
+
+# Initialize Vertex AI
 vertexai.init(project=PROJECT_ID, location=LOCATION)
 
 def create_session():
-    chat_model = ChatModel.from_pretrained("chat-bison@001")
-    chat = chat_model.start_chat()
-    return chat
+    try:
+        chat_model = ChatModel.from_pretrained("gemini-1.5-flash-001")
+        chat = chat_model.start_chat()
+        return chat
+    except Exception as e:
+        print(f"Error creating chat session: {e}")
+        return None
 
 def response(chat, message):
-    parameters = {
-        "temperature": 0.2,
-        "max_output_tokens": 256,
-        "top_p": 0.8,
-        "top_k": 40
-    }
-    result = chat.send_message(message, **parameters)
-    return result.text
+    try:
+        result = chat.send_message(message)
+        return result.text
+    except Exception as e:
+        print(f"Error sending message: {e}")
+        if "Quota exceeded" in str(e):
+            return "Quota exceeded. Please try again later."
+        return "Sorry, I couldn't process your request."
 
 @app.route('/')
 def index():
@@ -32,11 +37,15 @@ def index():
 def vertex_palm():
     user_input = ""
     if request.method == 'GET':
-        user_input = request.args.get('user_input')
-    else:
-        user_input = request.form['user_input']
+        user_input = request.args.get('user_input', '')
+    elif request.method == 'POST':
+        user_input = request.form.get('user_input', '')
+
     chat_model = create_session()
-    content = response(chat_model,user_input)
+    if not chat_model:
+        return jsonify(content="Failed to create chat session.")
+    
+    content = response(chat_model, user_input)
     return jsonify(content=content)
 
 if __name__ == '__main__':
